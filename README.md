@@ -14,7 +14,6 @@ A hand-written C99 interpreter: lexer, recursive-descent parser, AST, and tree-w
 ## Quick Start
 
 ```sh
-cd code
 make
 ./interpreter sample.c
 ```
@@ -39,24 +38,24 @@ Source Code  -->  Lexer  -->  Token Stream  -->  Parser  -->  AST  -->  Interpre
 
 | File | Purpose |
 |------|---------|
-| `code/main.c` | Entry point; includes all `.c` files (single translation unit), dispatches to interpreter or test suite |
-| `code/common.h` | Shared types (`s8`–`u64`, `f32`, `f64`, `b32`), `DynamicArray` macros, includes all headers |
-| `code/string_guard.h` | `String`/`Buffer` type and character-class/string utility functions |
-| `code/table.c` | String interning via linear search (used by lexer for identifiers/keywords) |
-| `code/io.c` | File I/O helpers (read file into memory) |
-| `code/lexer.h` | Token and Lexer type definitions, lexer API |
-| `code/lexer.c` | Full lexer implementation: keywords, operators, numbers, chars, strings, comments, preprocessor |
-| `code/ast.h` | AST node definitions: `TypeSpec`, `Expr`, `Stmt`, `ASTDecl`, and constructor prototypes |
-| `code/ast.c` | AST node constructors (heap-allocated) and recursive pretty-printer |
-| `code/parser.h` | Parser state, API prototypes, and complete EBNF grammar in comments |
-| `code/parser.c` | Recursive-descent parser: expressions (15 precedence levels), statements, declarations |
-| `code/eval.h` | Interpreter types: `Val` (runtime value), `Scope`/`Env`, `Interp` state, builtin function API |
-| `code/eval.c` | Tree-walking interpreter: expression evaluator, statement executor, function calls, builtins |
-| `code/grammar.txt` | Standalone reference of the complete implemented grammar |
-| `code/test.c` | All tests: lexer, parser AST, and interpreter |
-| `code/sample.c` | Example C program that exercises all interpreter features |
-| `code/Makefile` | Cross-platform build with `cc` (C99 standard) |
-| `code/build.bat` | Legacy Windows build (MSVC `cl`) |
+| `src/main.c` | Entry point; includes all `.c` files (single translation unit), dispatches to interpreter or test suite |
+| `src/common.h` | Shared types (`s8`–`u64`, `f32`, `f64`, `b32`), `DynamicArray` macros, includes all headers |
+| `src/string_guard.h` | `String`/`Buffer` type and character-class/string utility functions |
+| `src/table.c` | String interning via linear search (used by lexer for identifiers/keywords) |
+| `src/io.c` | File I/O helpers (read file into memory) |
+| `src/lexer.h` | Token and Lexer type definitions, lexer API |
+| `src/lexer.c` | Full lexer implementation: keywords, operators, numbers, chars, strings, comments, preprocessor |
+| `src/ast.h` | AST node definitions: `TypeSpec`, `Expr`, `Stmt`, `ASTDecl`, and constructor prototypes |
+| `src/ast.c` | AST node constructors (heap-allocated) and recursive pretty-printer |
+| `src/parser.h` | Parser state, API prototypes, and complete EBNF grammar in comments |
+| `src/parser.c` | Recursive-descent parser: expressions (15 precedence levels), statements, declarations |
+| `src/eval.h` | Interpreter types: `Val` (runtime value), `Scope`/`Env`, `Interp` state, builtin function API |
+| `src/eval.c` | Tree-walking interpreter: expression evaluator, statement executor, function calls, builtins |
+| `src/test.c` | All tests: lexer, parser AST, and interpreter |
+| `grammar.txt` | Standalone reference of the complete implemented grammar |
+| `sample.c` | Example C program that exercises all interpreter features |
+| `Makefile` | Cross-platform build with `cc` (C99 standard) |
+| `build.bat` | Legacy Windows build (MSVC `cl`) |
 
 ## Interpreter Features
 

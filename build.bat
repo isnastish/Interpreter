@@ -27,7 +27,7 @@ if not exist ..\..\build (mkdir ..\..\build)
 pushd ..\..\build
 
 cl ^
- %compiler_options% ..\Interpreter\code\main.c /link %linker_options% %*
+ %compiler_options% ..\Interpreter\src\main.c /link %linker_options% %*
 
 popd
 
