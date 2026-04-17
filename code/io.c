@@ -6,8 +6,6 @@
 #if !defined(IO_C)
 #define IO_C
 
-#define const
-
 internal char *read_file_into_memory_and_null_terminate(const char *file_name);
 internal String read_file_into_memory(const char *file_name);
 

@@ -7,7 +7,6 @@
 #define STRING_GUARD_H
 
 #define STRING_INLINE inline
-#define const
 
 
 typedef struct Buffer{
@@ -70,7 +69,7 @@ inline internal b32 is_oct(char c);
 inline internal b32 is_bin(char c);
 inline internal b32 is_upper(char c);
 inline internal b32 is_lower(char c);
-inline internal b32 oneof(char c, char *s);
+inline internal b32 oneof(char c, const char *s);
 inline internal b32 to_upper(char c);
 inline internal b32 to_lower(char c);
 inline internal u32 hex_val(char c);
@@ -84,8 +83,8 @@ inline internal void string_to_upper(char *s);
 inline internal void string_to_lower(char *s);
 inline internal b32 string_equal(const char *s1, const char *s2);
 inline internal b32 string_n_equal(const char *s1, const char *s2, u32 size);
-inline internal b32 s_string_equal(const String s1, const String s2);
-inline internal b32 sc_string_equal(const String s1, const char *s2);
+inline internal b32 s_string_equal(String s1, String s2);
+inline internal b32 sc_string_equal(String s1, const char *s2);
 inline internal b32 string_len(const char *s);
 inline internal char *string_concat(char *s1, const char *s2);
 inline internal char *string_n_concat(char *s1, const char *s2, u32 size);
@@ -94,7 +93,7 @@ inline internal String sc_string_concat(String *s1, const char *s2);
 inline internal b32 string_copy(char *s1, const char *s2);
 inline internal b32 string_n_copy(char *s1, const char *s2, u32 size);
 inline internal String sc_string_copy(String *s1, const char *s2);
-inline internal char *is_sub_string(const char *s1, const char *s2);
+inline internal const char *is_sub_string(const char *s1, const char *s2);
 
 inline internal void advance(Buffer *buf, u32 count){
     if(buf->count >= count){
@@ -156,7 +155,7 @@ inline internal b32 is_lower(char c){
     return(((c >= 'a') && (c <= 'z')));
 }
 
-inline internal b32 oneof(char c, char *s){
+inline internal b32 oneof(char c, const char *s){
     return(((c == s[0]) || (c == s[1])));
 }
 
@@ -229,16 +228,16 @@ inline internal b32 string_n_equal(const char *s1, const char *s2, u32 size){
     return(*s1 - *s2);
 }
 
-inline internal b32 sc_string_equal(const String s1, const char *s2){
+inline internal b32 sc_string_equal(String s1, const char *s2){
     if(s1.count == string_len(s2)){
-        return(string_equal(s1.data, s2));
+        return(string_equal((const char *)s1.data, s2));
     }
     return(1);
 }
 
 inline internal b32 s_string_equal(String s1, String s2){
     if(s1.count == s2.count){
-        return(string_equal(s1.data, s2.data));
+        return(string_equal((const char *)s1.data, (const char *)s2.data));
     }
     return(1);
 }
@@ -316,9 +315,9 @@ inline internal String sc_string_copy(String *s1, const char *s2){
     return(*s1);
 }
 
-inline internal char *is_sub_string(const char *s1, const char *s2){
-    char *result = s1;
-    char *str1, *str2;
+inline internal const char *is_sub_string(const char *s1, const char *s2){
+    const char *result = s1;
+    const char *str1, *str2;
     if(!*s2) return(result);
     while(*result){
         str1 = result;

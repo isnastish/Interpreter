@@ -1,27 +1,13 @@
 
 //
-// grammar: 
+// C99 Grammar — Complete specification for the recursive-descent parser.
+//
+// This file documents the grammar that parser.c implements.
 //
 
-// expr0 := expr1 ;
-// expr1 := expr2 + expr2 
-//        | expr2 - expr2
-//        | expr2 & expr2
-//        | expr2 | expr2
-//        | expr2 ^ expr2
-//        | expr2 << expr2
-//        | expr2 >> expr2
-//        | expr2
-// expr2 := epxr3 * expr3
-//        | expr3 / expr3
-//        | expr3 % expr3
-//        | expr3
-// expr3 := -expr4
-//        | +epxr4
-//        | expr4
-// expr4 := ( expr1 )
-//        | name
-//        | number
+// ============================================================
+// Lexical elements
+// ============================================================
 
 // int_num := 0|[1-9][0-9]*
 //          | 0(X|x)[0-9|a-f|A-F]+
@@ -38,60 +24,171 @@
 
 // name := [a-z|A-Z|_] [a-z|A-Z|_|0-9]*
 
-// name_list := name (',' name)*
+// ============================================================
+// Top-level
+// ============================================================
 
-// assign_op := | = | *= | /= | %= | += | -= | <<= | >>= | &= | ^= | |=
+// translation_unit := decl* EOF
 
-// switch_default := 'default' ':' stmt*
-// switch_case := 'case' '('? const_expr ')'? ':' stmt*
-// switch_block := '{' switch_case* switch_default? '}'
-// switch_stmt := 'switch' '(' expr ')' switch_block
+// ============================================================
+// Declarations
+// ============================================================
 
-// expr_stmt   := expr? ';'
-// for_stmt    := 'for' '(' expr? ';' expr? ';' expr?) stmt_block
-// while_stmt  := 'while' '(' expr ')' stmt_block
-// do_while    := 'do' stmt_block 'while' '(' expr ')' ';'
+// decl := typedef_decl
+//       | storage_class? (struct_or_union_decl | enum_decl | var_or_func_decl)
 
-// if_stmt     := 'if' '(' expr ')' (stmt_block? | ';')
-//                ('else' 'if' '(' expr ')' (stmt_block? | ';'))* 
-//                ('else' (stmt_block? | ';'))?
+// storage_class := 'static' | 'extern' | 'auto' | 'register'
+
+// typedef_decl := 'typedef' full_type name ';'
+
+// struct_or_union_decl := ('struct' | 'union') name? '{' struct_field* '}' ';'
+//                       | ('struct' | 'union') name ';'
+
+// struct_field := full_type name (':' expr)? ';'
+
+// enum_decl := 'enum' name? '{' enum_item (',' enum_item)* ','? '}' ';'
+//            | 'enum' name ';'
+
+// enum_item := name ('=' ternary)?
+
+// var_or_func_decl := full_type name array_suffix? ('=' assign)? ';'
+//                   | full_type name '(' param_list? ')' (compound_stmt | ';')
+
+// array_suffix := '[' expr? ']'
+
+// param_list := 'void'
+//             | param (',' param)* (',' '...')?
+//             | '...'
+
+// param := full_type name? array_suffix?
+
+// ============================================================
+// Types
+// ============================================================
+
+// base_type := type_qualifier* type_specifier+ type_qualifier*
+//            | 'struct' name? '{' struct_field* '}'
+//            | 'struct' name
+//            | 'union' name? '{' struct_field* '}'
+//            | 'union' name
+//            | 'enum' name? '{' enum_item (',' enum_item)* ','? '}'
+//            | 'enum' name
+//            | name  (typedef'd name)
+
+// type_specifier := 'void' | 'char' | 'short' | 'int' | 'long'
+//                 | 'float' | 'double' | 'signed' | 'unsigned'
+
+// type_qualifier := 'const' | 'volatile'
+
+// full_type := base_type pointer*
+
+// pointer := '*' type_qualifier*
+
+// ============================================================
+// Statements
+// ============================================================
+
+// stmt := compound_stmt
+//       | if_stmt
+//       | while_stmt
+//       | do_while_stmt
+//       | for_stmt
+//       | switch_stmt
+//       | return_stmt
+//       | break_stmt
+//       | continue_stmt
+//       | goto_stmt
+//       | label_stmt
+//       | decl_stmt
+//       | expr_stmt
+
+// compound_stmt := '{' stmt* '}'
+
+// if_stmt := 'if' '(' expr ')' stmt ('else' stmt)?
+
+// while_stmt := 'while' '(' expr ')' stmt
+
+// do_while_stmt := 'do' stmt 'while' '(' expr ')' ';'
+
+// for_stmt := 'for' '(' (decl | expr ';' | ';') expr? ';' expr? ')' stmt
+
+// switch_stmt := 'switch' '(' expr ')' '{' switch_case* '}'
+
+// switch_case := ('case' ternary | 'default') ':' stmt*
+
+// return_stmt := 'return' expr? ';'
 
 // break_stmt := 'break' ';'
 
 // continue_stmt := 'continue' ';'
 
-// return_stmt := 'return' ('(' expr ')' | expr?) ';'
+// goto_stmt := 'goto' name ';'
 
-// stmt := switch_stmt
-//       | expr_stmt
-//       | comp_stmt
-//       | if_stmt
-//       | while_stmt
-//       | for_stmt
-//       | do_stmt
-//       | goto_stmt
-//       | continue_stmt
-//       | return_stmt
-//       | '{' stmt* '}'
+// label_stmt := name ':' stmt
 
+// decl_stmt := decl
 
-// enum_item := name ('=' const_expr)?
-// enum_items := enum_item (',' enum_item)* ','?
-// enum_decl := name '{' enum_items? '}' ';'
+// expr_stmt := expr? ';'
 
-// func_param := type name
-// func_param_list := func_param (',' func_param)*
-// func_decl := type name '(' func_param_list? ')' stmt_block
+// ============================================================
+// Expressions (C99 precedence, lowest to highest)
+// ============================================================
 
-// typedef_decl := type name ';'
+// expr := assign (',' assign)*
 
-// aggregate_decl := TODO
+// assign := ternary (assign_op assign)?
 
-// var_decl := TODO
+// assign_op := '=' | '+=' | '-=' | '*=' | '/=' | '%='
+//            | '&=' | '|=' | '^=' | '<<=' | '>>='
 
-// decl := 'enum' enum_decl
-//       | 'struct' aggregate_decl
-//       | 'union' aggregate_decl
-//       | var_decl
-//       | 'typedef' typedef_decl
-//       | func_decl
+// ternary := logical_or ('?' expr ':' ternary)?
+
+// logical_or := logical_and ('||' logical_and)*
+
+// logical_and := bitwise_or ('&&' bitwise_or)*
+
+// bitwise_or := bitwise_xor ('|' bitwise_xor)*
+
+// bitwise_xor := bitwise_and ('^' bitwise_and)*
+
+// bitwise_and := equality ('&' equality)*
+
+// equality := relational (('==' | '!=') relational)*
+
+// relational := shift (('<' | '>' | '<=' | '>=') shift)*
+
+// shift := additive (('<<' | '>>') additive)*
+
+// additive := multiplicative (('+' | '-') multiplicative)*
+
+// multiplicative := cast (('*' | '/' | '%') cast)*
+
+// cast := '(' type_name ')' cast
+//       | unary
+
+// unary := '++' unary
+//        | '--' unary
+//        | unary_op cast
+//        | 'sizeof' '(' type_name ')'
+//        | 'sizeof' unary
+//        | postfix
+
+// unary_op := '&' | '*' | '+' | '-' | '~' | '!'
+
+// postfix := primary postfix_suffix*
+
+// postfix_suffix := '(' arg_list? ')'
+//                 | '[' expr ']'
+//                 | '.' name
+//                 | '->' name
+//                 | '++'
+//                 | '--'
+
+// arg_list := assign (',' assign)*
+
+// primary := int_num
+//          | float_num
+//          | string_literal
+//          | char_literal
+//          | name
+//          | '(' expr ')'

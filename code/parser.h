@@ -1,187 +1,198 @@
 
-
+/*
+ * parser.h — Recursive-descent parser for C99.
+ *
+ * Grammar (simplified EBNF notation):
+ *
+ * ========== Top-level ==========
+ *
+ * translation_unit := decl*
+ *
+ * ========== Declarations ==========
+ *
+ * decl := func_decl | var_decl | struct_decl | union_decl | enum_decl | typedef_decl
+ *
+ * storage_class := 'static' | 'extern' | 'auto' | 'register'
+ *
+ * type_qualifier := 'const' | 'volatile'
+ *
+ * base_type := 'void' | 'char' | 'short' | 'int' | 'long' | 'float' | 'double'
+ *            | 'signed' | 'unsigned'
+ *            | 'struct' name? '{' struct_field* '}'
+ *            | 'struct' name
+ *            | 'union' name? '{' struct_field* '}'
+ *            | 'union' name
+ *            | 'enum' name? '{' enum_item (',' enum_item)* ','? '}'
+ *            | 'enum' name
+ *            | name   (typedef'd name)
+ *
+ * type_specifier := type_qualifier* base_type+ type_qualifier* pointer*
+ *
+ * pointer := '*' type_qualifier*
+ *
+ * struct_field := type_specifier name (':' const_expr)? ';'
+ *
+ * enum_item := name ('=' const_expr)?
+ *
+ * var_decl := storage_class? type_specifier name ('=' initializer)? ';'
+ *
+ * func_param := type_specifier name?
+ * func_param_list := func_param (',' func_param)* (',' '...')?
+ *                  | 'void'
+ *                  | '...'
+ *
+ * func_decl := storage_class? type_specifier name '(' func_param_list? ')' (compound_stmt | ';')
+ *
+ * typedef_decl := 'typedef' type_specifier name ';'
+ *
+ * struct_decl := 'struct' name? '{' struct_field* '}' ';'
+ * union_decl  := 'union'  name? '{' struct_field* '}' ';'
+ * enum_decl   := 'enum'   name? '{' enum_item (',' enum_item)* ','? '}' ';'
+ *
+ * ========== Statements ==========
+ *
+ * stmt := compound_stmt | if_stmt | while_stmt | do_while_stmt | for_stmt
+ *       | switch_stmt | return_stmt | break_stmt | continue_stmt | goto_stmt
+ *       | label_stmt | expr_stmt | decl_stmt
+ *
+ * compound_stmt := '{' (stmt | decl)* '}'
+ * if_stmt       := 'if' '(' expr ')' stmt ('else' stmt)?
+ * while_stmt    := 'while' '(' expr ')' stmt
+ * do_while_stmt := 'do' stmt 'while' '(' expr ')' ';'
+ * for_stmt      := 'for' '(' (expr | decl)? ';' expr? ';' expr? ')' stmt
+ * switch_stmt   := 'switch' '(' expr ')' '{' switch_case* '}'
+ * switch_case   := ('case' const_expr | 'default') ':' stmt*
+ * return_stmt   := 'return' expr? ';'
+ * break_stmt    := 'break' ';'
+ * continue_stmt := 'continue' ';'
+ * goto_stmt     := 'goto' name ';'
+ * label_stmt    := name ':' stmt
+ * expr_stmt     := expr? ';'
+ *
+ * ========== Expressions (C99 precedence, lowest to highest) ==========
+ *
+ * expr           := assign (',' assign)*
+ * assign         := ternary (assign_op assign)?
+ * assign_op      := '=' | '+=' | '-=' | '*=' | '/=' | '%=' | '&=' | '|='
+ *                 | '^=' | '<<=' | '>>='
+ * ternary        := logical_or ('?' expr ':' ternary)?
+ * logical_or     := logical_and ('||' logical_and)*
+ * logical_and    := bitwise_or ('&&' bitwise_or)*
+ * bitwise_or     := bitwise_xor ('|' bitwise_xor)*
+ * bitwise_xor    := bitwise_and ('^' bitwise_and)*
+ * bitwise_and    := equality ('&' equality)*
+ * equality       := relational (('==' | '!=') relational)*
+ * relational     := shift (('<' | '>' | '<=' | '>=') shift)*
+ * shift          := additive (('<<' | '>>') additive)*
+ * additive       := multiplicative (('+' | '-') multiplicative)*
+ * multiplicative := cast (('*' | '/' | '%') cast)*
+ * cast           := '(' type_name ')' cast | unary
+ * unary          := ('++' | '--') unary | unary_op cast
+ *                 | 'sizeof' unary | 'sizeof' '(' type_name ')'
+ *                 | postfix
+ * unary_op       := '&' | '*' | '+' | '-' | '~' | '!'
+ * postfix        := primary (postfix_suffix)*
+ * postfix_suffix := '(' arg_list? ')' | '[' expr ']' | '.' name
+ *                 | '->' name | '++' | '--'
+ * primary        := int_literal | float_literal | string_literal
+ *                 | char_literal | name | '(' expr ')'
+ */
 
 #if !defined(PARSER_H)
 #define PARSER_H
 
-#define darr(x)
+/* ======================================================================
+ * Parser state
+ * ====================================================================== */
 
-typedef enum DeclType{
-    DT_FuncDecl,
-    DT_VarDecl,
-    DT_EnumDecl,
-    DT_StructDecl,
-    DT_UnionDecl,
-    DT_TypedefDecl,
-}DeclType;
+typedef struct Parser {
+    Lexer *lexer;
+    b32 had_error;
+    b32 panic_mode;
+} Parser;
 
-typedef enum FuncLinkageType{
-    FLT_Static,
-    FLT_Extern, // by default.
-}FuncLinkageType;
+internal Parser parser_init(Lexer *lexer);
 
-typedef struct Decl Decl;
-typedef struct FuncDecl FuncDecl;
-typedef struct VarDecl VarDecl;
-typedef struct StructDecl StructDecl;
-typedef struct UnionDecl UnionDecl;
-typedef struct TypedefDecl TypedefDecl;
-typedef struct EnumDecl EnumDecl;
+/* ======================================================================
+ * Parser error reporting
+ * ====================================================================== */
 
-typedef struct FuncDeclParam FuncDeclParam;
-struct FuncDeclParam { String name; String type; };
-struct FuncDecl{
-    String return_type;
+internal void parse_error(Parser *p, const char *msg);
+internal void parse_error_at(Parser *p, u32 line, u32 col, const char *msg);
 
-    darr(FuncDeclParam *params;)
+/* ======================================================================
+ * Token helpers
+ * ====================================================================== */
 
-    union{
-        f64 F64;
-        u64 U64;
-        
-        // etc...
-    }return_value;
+internal void parser_advance(Parser *p);
+internal b32 parser_check(Parser *p, s32 kind);
+internal b32 parser_match(Parser *p, s32 kind);
+internal void parser_expect(Parser *p, s32 kind, const char *msg);
 
-    FuncLinkageType linkage_type;
-};
+/* ======================================================================
+ * Type parsing
+ * ====================================================================== */
 
-struct VarDecl{
-    String type;
+internal b32 is_type_token(Parser *p);
+internal TypeSpec *parse_base_type(Parser *p);
+internal TypeSpec *parse_full_type(Parser *p);
 
-    union{
-        f64 F64;
-        u64 U64;
-        String string;
-    }value;
-};  
+/* ======================================================================
+ * Expression parsing (C99 precedence)
+ * ====================================================================== */
 
-struct Decl{
-    String source;
-    u32 line_number;
-    u32 column_number;
+internal Expr *parse_expr(Parser *p);
+internal Expr *parse_expr_assign(Parser *p);
+internal Expr *parse_expr_ternary(Parser *p);
+internal Expr *parse_expr_logical_or(Parser *p);
+internal Expr *parse_expr_logical_and(Parser *p);
+internal Expr *parse_expr_bitwise_or(Parser *p);
+internal Expr *parse_expr_bitwise_xor(Parser *p);
+internal Expr *parse_expr_bitwise_and(Parser *p);
+internal Expr *parse_expr_equality(Parser *p);
+internal Expr *parse_expr_relational(Parser *p);
+internal Expr *parse_expr_shift(Parser *p);
+internal Expr *parse_expr_additive(Parser *p);
+internal Expr *parse_expr_multiplicative(Parser *p);
+internal Expr *parse_expr_cast(Parser *p);
+internal Expr *parse_expr_unary(Parser *p);
+internal Expr *parse_expr_postfix(Parser *p);
+internal Expr *parse_expr_primary(Parser *p);
 
-    String name;
-    DeclType type;
-    union{
-        FuncDecl func_decl;
-        VarDecl var_decl;
-        //EnumDecl enum_decl;
-        //StructDecl struct_decl;
-        //UnionDecl union_decl;
-        //TypedefDecl typedef_decl;   
-    };
-};
+/* ======================================================================
+ * Statement parsing
+ * ====================================================================== */
 
-//
-// EBNF Grammar:
-//
+internal Stmt *parse_stmt(Parser *p);
+internal Stmt *parse_stmt_block(Parser *p);
 
-// name := ([a-z]|[A-Z]|_) ([a-z]|[A-Z]|_|[0-9])*
+/* ======================================================================
+ * Declaration parsing
+ * ====================================================================== */
 
-// octal := 0[0-7]+
-// binary := 0(B|b)(0|1)+
-// integer := (0|[1-9][0-9]*)
-// hexidecimal := 0(X|x)([0-9]|[a-f]|[A-F])+
-// int_number := (-|+)(integer|octal|hexidecimal|binary)
+internal ASTDecl *parse_decl(Parser *p);
+internal ASTDecl *parse_decl_enum(Parser *p);
+internal ASTDecl *parse_decl_struct(Parser *p);
+internal ASTDecl *parse_decl_union(Parser *p);
+internal ASTDecl *parse_decl_typedef(Parser *p);
+internal ASTDecl *parse_decl_func_rest(Parser *p, TypeSpec *ret_type, String name,
+                                        StorageClass sc, u32 line, u32 col);
+internal ASTDecl *parse_decl_aggregate(Parser *p, b32 is_struct);
 
-// float_number := (-|+) (0|[1-9][0-9]*) (e|.[0-9]*) ((E|e)(-|+)?(0|[1-9][0-9]*))?
-//                 | (-|+) .[0-9]* ((E|e)(-|+)?(0|[1-9][0-9]*))
+/* ======================================================================
+ * Top-level
+ * ====================================================================== */
 
-// assign_op := (= | += | -= | *= | /= | %= | |= | &= | ^= | <<= | >>= )
+internal ASTDecl **parse_translation_unit(Parser *p);
 
-// unary_op := (& | * | + | - | ~ | !)
+/* ======================================================================
+ * Legacy expression evaluator (kept for existing test_parse_expr)
+ * ====================================================================== */
 
-// esc_seq := (\n|\t|\v|\b|\r|\f|\a|\\|\?|\'|\"|\ooo|\xhh)
-// char_literal := ' (esc_seq | ^es_seq) '
-
-// string := " (^("|\n|\r))* "
-
-// c_multiline_comment := /* (^*|*+(^/))* */
-// c_singleline_comment := // (^\n)* \n
-// c_comment := c_multiline_comment | c-singleline_comment
-
-// linkage_type := (static|extern)
-
-// name_list := name (',' name)*
-
-// type_list := type (',' type)*
-
-// type_specifier := (char|short|int|long|float|double|signed|unsigned)
-// type_qualifier := (const|volatile)
-// type := type_qualifier? type_specifier
- 
-// enum_iterm := name '=' expr0
-// enum_items := enum_item (',' enum_iterm)*
-// enum_decl := 'enum' name '{' enum_items? '}' ';'
-
-struct t; // struct definition.
-struct t{f32 x1, x2;}; // struct declaration.
-struct {f32 x1, x2;}; // anonimus structure.
-
-union x; // union definition.
-union x{f64 F64; u64 U64; char *string;}; // union declaration.
-union {f64 F64; u64 U64; char *string;}; // anonimus union.
-
-//struct_declaration_list := struct_or_union_decl
-//                          | struct_declaration_list
-// struct_or_union_decl := (struct|union) name? '{' struct_declaration_list '}' ';'
-//                       | (struct|union) name ';'
-
-
-//
-// TODO: Grammar for functions is not complete.
-//
-
-// func_param := type name 
-// func_param_list := func_param (',' func_param)*
-// func_name := name
-// func_return_type := (int_number | float_number)
-// func_decl := func_return_type func_name '(' func_param_list? ')' '{' stmt_block '}'
-
-// var_direct_decl := name
-//                  | '(' var_decl1 ')
-//                  | var_direc_decl '[' const_expr ']'
-// var_decl1 := (*)* var_direct_decl
-// var_decl := type var_decl1 ('=' expr0)? ';'
-internal void parse_decl(Lexer *lexer, Decl *decl);
-internal void parse_direct_decl(Lexer *lexer, Decl *decl);
-
-// decl := func_decl
-//       | var_decl
-//       | struct_decl
-//       | union_decl
-//       | enum_decl
-//       | typedef_decl
-
-// expr0 := expr1 + expr1
-//        | expr1 - expr1
-//        | expr1 | expr1
-//        | expr1 & expr1
-//        | expr1 ^ expr1
-//        | expr1 << expr1
-//        | expr1 >> expr1
-//        | expr1
-//
-// expr1 := expr2 * expr2
-//        | expr2 / expr2
-//        | expr2 % expr2
-//        | expr2
-//
-// expr2 := +expr3
-//        | -expr3
-//        | expr3
-//
-// expr3 := '(' expr0 ')'
-//        | name
-//        | float_number
-//        | int_number
 internal s64 expr0(Lexer *lexer);
 internal s64 expr1(Lexer *lexer);
 internal s64 expr2(Lexer *lexer);
 internal s64 expr3(Lexer *lexer);
 internal s64 expr4(Lexer *lexer);
 
-
-
-
-#endif // PARSER_H
+#endif /* PARSER_H */

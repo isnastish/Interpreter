@@ -36,7 +36,7 @@ typedef double f64;
 typedef size_t mem_index;
 
 #define Assert(expr) assert((expr))
-#define U64_MAX _UI64_MAX
+#define U64_MAX UINT64_MAX
 #define Max(a, b) ((a) > (b) ? (a) : (b))
 #define Min(a, b) ((a) < (b) ? (a) : (b))
 #define SizeOf(item) ((char *)(&item + 1) - (char *)(&item)) // FixMe: Doesn't work with types.
@@ -84,6 +84,7 @@ static void *DynamicArray__grow(void *array, mem_index requested_size, mem_index
 
 #include "string_guard.h"
 #include "lexer.h"
+#include "ast.h"
 #include "parser.h"
 
 #endif // COMMON_H
