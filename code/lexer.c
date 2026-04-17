@@ -647,6 +647,15 @@ internal Token gettoken(Lexer *lexer){
                         }
                         if(lexer->at[0] == '*') advance_chars(lexer, 2);
                     }
+                    else if(c == '/'){
+                        if(lexer->at[0] == '='){
+                            token.kind = TK_DivEq;
+                            advance_chars(lexer, 1);
+                        }
+                        else{
+                            token.kind = TK_Div;
+                        }
+                    }
                     else if(is_newline(c)){
                         if(w32_newline(c, lexer->at[0]))
                             advance_chars(lexer, 1);

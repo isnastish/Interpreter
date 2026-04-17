@@ -9,20 +9,26 @@
 #include "lexer.c"
 #include "ast.c"
 #include "parser.c"
+#include "eval.c"
 #include "test.c"
 
 int main(int args_count, char **args_values){
     intern_reserved(&intern_table);
 
     if(args_count >= 2){
-        printf("C99 Interpreter — parsing %d file(s)\n\n", args_count - 1);
+        b32 dump_ast = 0;
 
-        for(int i = 1; i < args_count; ++i){
-            printf("Reading '%s'...\n", args_values[i]);
+        /* Check for --ast flag */
+        int file_start = 1;
+        if(args_count >= 3 && strcmp(args_values[1], "--ast") == 0){
+            dump_ast = 1;
+            file_start = 2;
+        }
 
+        for(int i = file_start; i < args_count; ++i){
             char *file_contents = read_file_into_memory_and_null_terminate(args_values[i]);
             if(!file_contents){
-                fprintf(stderr, "  error: could not open '%s'\n", args_values[i]);
+                fprintf(stderr, "error: could not open '%s'\n", args_values[i]);
                 return(1);
             }
 
@@ -34,55 +40,38 @@ int main(int args_count, char **args_values){
             contents.data = file_contents;
             contents.count = string_len(file_contents);
 
-            printf("  Lexing...\n");
             Lexer lexer = init_lexer(source, contents);
-
-            printf("  Parsing...\n");
             Parser parser = parser_init(&lexer);
             ASTDecl **decls = parse_translation_unit(&parser);
 
             if(parser.had_error){
-                fprintf(stderr, "  " ANSI_RED "Parse failed with errors." ANSI_RESET "\n\n");
-            } else {
+                fprintf(stderr, ANSI_RED "Parse failed with errors." ANSI_RESET "\n");
+                free(file_contents);
+                return(1);
+            }
+
+            if(dump_ast){
                 s32 num_decls = (s32)darr_len(decls);
-                printf("  " ANSI_GREEN "Parse OK" ANSI_RESET
-                       " — %d top-level declaration(s) found.\n\n", num_decls);
-
-                s32 num_funcs = 0, num_vars = 0, num_structs = 0;
-                s32 num_unions = 0, num_enums = 0, num_typedefs = 0;
+                printf("--- AST for '%s' (%d declarations) ---\n\n", args_values[i], num_decls);
                 for(s32 j = 0; j < num_decls; ++j){
-                    switch(decls[j]->kind){
-                        case DECL_FUNC:    num_funcs++;    break;
-                        case DECL_VAR:     num_vars++;     break;
-                        case DECL_STRUCT:  num_structs++;  break;
-                        case DECL_UNION:   num_unions++;   break;
-                        case DECL_ENUM:    num_enums++;    break;
-                        case DECL_TYPEDEF: num_typedefs++; break;
-                        default: break;
-                    }
-                }
-
-                printf("  Summary:\n");
-                if(num_funcs)    printf("    Functions:  %d\n", num_funcs);
-                if(num_vars)     printf("    Variables:  %d\n", num_vars);
-                if(num_structs)  printf("    Structs:    %d\n", num_structs);
-                if(num_unions)   printf("    Unions:     %d\n", num_unions);
-                if(num_enums)    printf("    Enums:      %d\n", num_enums);
-                if(num_typedefs) printf("    Typedefs:   %d\n", num_typedefs);
-
-                printf("\n  AST dump:\n");
-                printf("  ----------------------------------------\n");
-                for(s32 j = 0; j < num_decls; ++j){
-                    ast_print_decl(decls[j], 1);
+                    ast_print_decl(decls[j], 0);
                     printf("\n");
                 }
-                printf("  ----------------------------------------\n");
+            }
+
+            /* Run the interpreter */
+            Interp interp = interp_init();
+            interp_run(&interp, decls);
+
+            if(interp.had_error){
+                fprintf(stderr, ANSI_RED "Runtime error occurred." ANSI_RESET "\n");
+                free(file_contents);
+                return(1);
             }
 
             free(file_contents);
         }
 
-        printf("Done.\n");
         return(0);
     }
 
@@ -103,6 +92,20 @@ int main(int args_count, char **args_values){
     printf("\n--- Parser tests ---\n");
     TEST(test_parse_expr);
     TEST(test_parse_declarations);
+
+    printf("\n--- Interpreter tests ---\n");
+    TEST(test_interp_arithmetic);
+    TEST(test_interp_variables);
+    TEST(test_interp_control_flow);
+    TEST(test_interp_functions);
+    TEST(test_interp_switch);
+    TEST(test_interp_pointers);
+    TEST(test_interp_structs);
+    TEST(test_interp_enums);
+    TEST(test_interp_bitwise);
+    TEST(test_interp_ternary);
+    TEST(test_interp_goto);
+    TEST(test_interp_increment);
 
     printf("\nDone.\n");
     return(0);

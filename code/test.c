@@ -2746,6 +2746,374 @@ b32 test_preproc(void){
 }
 #undef Match
 
+/* ======================================================================
+ * Interpreter tests
+ * ====================================================================== */
+
+internal Val test_eval_program(char *src) {
+    String contents;
+    contents.data = src;
+    contents.count = string_len(src);
+    contents.capacity = 0;
+    Lexer *lexer = (Lexer *)malloc(sizeof(Lexer));
+    *lexer = init_lexer((String){0}, contents);
+    Parser parser = parser_init(lexer);
+    ASTDecl **decls = parse_translation_unit(&parser);
+    Assert(!parser.had_error);
+
+    Interp interp = interp_init();
+    interp_run(&interp, decls);
+    Assert(!interp.had_error);
+
+    Val *result = scope_lookup(&interp, (String){"_result", 7, 0});
+    if (result) return *result;
+    return interp.return_val;
+}
+
+b32 test_interp_arithmetic(void) {
+    {
+        Val r = test_eval_program(
+            "int _result;"
+            "int main(int argc, char **argv) {"
+            "  _result = 2 + 3 * 4;"
+            "  return 0;"
+            "}");
+        Assert(r.kind == VAL_INT);
+        Assert(r.i == 14);
+    }
+    {
+        Val r = test_eval_program(
+            "int _result;"
+            "int main(int argc, char **argv) {"
+            "  _result = (10 - 3) * 2;"
+            "  return 0;"
+            "}");
+        Assert(r.kind == VAL_INT);
+        Assert(r.i == 14);
+    }
+    {
+        Val r = test_eval_program(
+            "int _result;"
+            "int main(int argc, char **argv) {"
+            "  _result = 100 / 7;"
+            "  return 0;"
+            "}");
+        Assert(r.kind == VAL_INT);
+        Assert(r.i == 14);
+    }
+    {
+        Val r = test_eval_program(
+            "int _result;"
+            "int main(int argc, char **argv) {"
+            "  _result = 17 % 5;"
+            "  return 0;"
+            "}");
+        Assert(r.kind == VAL_INT);
+        Assert(r.i == 2);
+    }
+    {
+        Val r = test_eval_program(
+            "int _result;"
+            "int main(int argc, char **argv) {"
+            "  _result = -42;"
+            "  return 0;"
+            "}");
+        Assert(r.kind == VAL_INT);
+        Assert(r.i == -42);
+    }
+    return 1;
+}
+
+b32 test_interp_variables(void) {
+    {
+        Val r = test_eval_program(
+            "int _result;"
+            "int main(int argc, char **argv) {"
+            "  int x = 10;"
+            "  int y = 20;"
+            "  _result = x + y;"
+            "  return 0;"
+            "}");
+        Assert(r.kind == VAL_INT);
+        Assert(r.i == 30);
+    }
+    {
+        Val r = test_eval_program(
+            "int _result;"
+            "int main(int argc, char **argv) {"
+            "  int x = 5;"
+            "  x += 3;"
+            "  x *= 2;"
+            "  _result = x;"
+            "  return 0;"
+            "}");
+        Assert(r.kind == VAL_INT);
+        Assert(r.i == 16);
+    }
+    {
+        Val r = test_eval_program(
+            "int _result;"
+            "int g = 42;"
+            "int main(int argc, char **argv) {"
+            "  _result = g;"
+            "  return 0;"
+            "}");
+        Assert(r.kind == VAL_INT);
+        Assert(r.i == 42);
+    }
+    return 1;
+}
+
+b32 test_interp_control_flow(void) {
+    /* if-else */
+    {
+        Val r = test_eval_program(
+            "int _result;"
+            "int main(int argc, char **argv) {"
+            "  int x = 10;"
+            "  if (x > 5) _result = 1; else _result = 0;"
+            "  return 0;"
+            "}");
+        Assert(r.i == 1);
+    }
+    /* while loop */
+    {
+        Val r = test_eval_program(
+            "int _result;"
+            "int main(int argc, char **argv) {"
+            "  int i = 0; int sum = 0;"
+            "  while (i < 10) { sum = sum + i; i++; }"
+            "  _result = sum;"
+            "  return 0;"
+            "}");
+        Assert(r.i == 45);
+    }
+    /* for loop */
+    {
+        Val r = test_eval_program(
+            "int _result;"
+            "int main(int argc, char **argv) {"
+            "  int sum = 0;"
+            "  for (int i = 1; i <= 100; i++) { sum = sum + i; }"
+            "  _result = sum;"
+            "  return 0;"
+            "}");
+        Assert(r.i == 5050);
+    }
+    /* do-while */
+    {
+        Val r = test_eval_program(
+            "int _result;"
+            "int main(int argc, char **argv) {"
+            "  int n = 1;"
+            "  do { n = n * 2; } while (n < 100);"
+            "  _result = n;"
+            "  return 0;"
+            "}");
+        Assert(r.i == 128);
+    }
+    /* break */
+    {
+        Val r = test_eval_program(
+            "int _result;"
+            "int main(int argc, char **argv) {"
+            "  int i = 0;"
+            "  while (1) { if (i >= 5) break; i++; }"
+            "  _result = i;"
+            "  return 0;"
+            "}");
+        Assert(r.i == 5);
+    }
+    /* continue */
+    {
+        Val r = test_eval_program(
+            "int _result;"
+            "int main(int argc, char **argv) {"
+            "  int sum = 0;"
+            "  for (int i = 0; i < 10; i++) {"
+            "    if (i % 2 == 0) continue;"
+            "    sum = sum + i;"
+            "  }"
+            "  _result = sum;"
+            "  return 0;"
+            "}");
+        Assert(r.i == 25);
+    }
+    return 1;
+}
+
+b32 test_interp_functions(void) {
+    /* Simple function call */
+    {
+        Val r = test_eval_program(
+            "int _result;"
+            "int add(int a, int b) { return a + b; }"
+            "int main(int argc, char **argv) {"
+            "  _result = add(3, 4);"
+            "  return 0;"
+            "}");
+        Assert(r.i == 7);
+    }
+    /* Recursion */
+    {
+        Val r = test_eval_program(
+            "int _result;"
+            "int fact(int n) {"
+            "  if (n <= 1) return 1;"
+            "  return n * fact(n - 1);"
+            "}"
+            "int main(int argc, char **argv) {"
+            "  _result = fact(10);"
+            "  return 0;"
+            "}");
+        Assert(r.i == 3628800);
+    }
+    /* Fibonacci */
+    {
+        Val r = test_eval_program(
+            "int _result;"
+            "int fib(int n) {"
+            "  int a = 0; int b = 1;"
+            "  for (int i = 0; i < n; i++) {"
+            "    int t = b; b = a + b; a = t;"
+            "  }"
+            "  return a;"
+            "}"
+            "int main(int argc, char **argv) {"
+            "  _result = fib(10);"
+            "  return 0;"
+            "}");
+        Assert(r.i == 55);
+    }
+    return 1;
+}
+
+b32 test_interp_switch(void) {
+    {
+        Val r = test_eval_program(
+            "int _result;"
+            "int classify(int x) {"
+            "  switch (x) {"
+            "    case 0: return 10;"
+            "    case 1: case 2: return 20;"
+            "    default: return 30;"
+            "  }"
+            "}"
+            "int main(int argc, char **argv) {"
+            "  _result = classify(0) + classify(1) + classify(2) + classify(99);"
+            "  return 0;"
+            "}");
+        Assert(r.i == 10 + 20 + 20 + 30);
+    }
+    return 1;
+}
+
+b32 test_interp_pointers(void) {
+    {
+        Val r = test_eval_program(
+            "int _result;"
+            "int main(int argc, char **argv) {"
+            "  int x = 10;"
+            "  int *p = &x;"
+            "  *p = 42;"
+            "  _result = x;"
+            "  return 0;"
+            "}");
+        Assert(r.i == 42);
+    }
+    return 1;
+}
+
+b32 test_interp_structs(void) {
+    {
+        Val r = test_eval_program(
+            "int _result;"
+            "struct Point { int x; int y; };"
+            "int main(int argc, char **argv) {"
+            "  struct Point p;"
+            "  p.x = 10;"
+            "  p.y = 20;"
+            "  _result = p.x + p.y;"
+            "  return 0;"
+            "}");
+        Assert(r.i == 30);
+    }
+    return 1;
+}
+
+b32 test_interp_enums(void) {
+    {
+        Val r = test_eval_program(
+            "int _result;"
+            "enum Color { RED, GREEN = 10, BLUE };"
+            "int main(int argc, char **argv) {"
+            "  _result = RED + GREEN + BLUE;"
+            "  return 0;"
+            "}");
+        Assert(r.i == 0 + 10 + 11);
+    }
+    return 1;
+}
+
+b32 test_interp_bitwise(void) {
+    {
+        Val r = test_eval_program(
+            "int _result;"
+            "int main(int argc, char **argv) {"
+            "  _result = (0xFF & 0x0F) + (0xA0 | 0x05) + (0xFF ^ 0x0F) + (1 << 10) + (1024 >> 3);"
+            "  return 0;"
+            "}");
+        Assert(r.i == 15 + 0xA5 + 0xF0 + 1024 + 128);
+    }
+    return 1;
+}
+
+b32 test_interp_ternary(void) {
+    {
+        Val r = test_eval_program(
+            "int _result;"
+            "int main(int argc, char **argv) {"
+            "  int a = 10; int b = 20;"
+            "  _result = (a > b) ? a : b;"
+            "  return 0;"
+            "}");
+        Assert(r.i == 20);
+    }
+    return 1;
+}
+
+b32 test_interp_goto(void) {
+    {
+        Val r = test_eval_program(
+            "int _result;"
+            "int main(int argc, char **argv) {"
+            "  int result = 1; int i = 1;"
+            "  loop: if (i > 5) goto done;"
+            "  result = result * i; i++; goto loop;"
+            "  done: _result = result;"
+            "  return 0;"
+            "}");
+        Assert(r.i == 120);
+    }
+    return 1;
+}
+
+b32 test_interp_increment(void) {
+    {
+        Val r = test_eval_program(
+            "int _result;"
+            "int main(int argc, char **argv) {"
+            "  int n = 5;"
+            "  int a = ++n;"
+            "  int b = n++;"
+            "  _result = a * 100 + b * 10 + n;"
+            "  return 0;"
+            "}");
+        Assert(r.i == 6 * 100 + 6 * 10 + 7);
+    }
+    return 1;
+}
+
 #define ANSI_RED    "\033[31m"
 #define ANSI_GREEN  "\033[32m"
 #define ANSI_RESET  "\033[0m"

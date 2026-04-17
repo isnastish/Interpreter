@@ -3,7 +3,7 @@ CFLAGS = -std=c99 -Wall -Wextra -Wno-unused-parameter -Wno-unused-function -g
 
 all: interpreter
 
-interpreter: main.c common.h string_guard.h lexer.h lexer.c ast.h ast.c parser.h parser.c table.c io.c test.c
+interpreter: main.c common.h string_guard.h lexer.h lexer.c ast.h ast.c parser.h parser.c eval.h eval.c table.c io.c test.c
 	$(CC) $(CFLAGS) -o $@ main.c
 
 clean:

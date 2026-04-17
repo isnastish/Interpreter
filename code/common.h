@@ -86,5 +86,6 @@ static void *DynamicArray__grow(void *array, mem_index requested_size, mem_index
 #include "lexer.h"
 #include "ast.h"
 #include "parser.h"
+#include "eval.h"
 
 #endif // COMMON_H

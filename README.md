@@ -1,6 +1,6 @@
 # C99 Interpreter
 
-A hand-written lexer and recursive-descent parser for the C99 programming language.
+A hand-written C99 interpreter: lexer, recursive-descent parser, AST, and tree-walking interpreter — all in portable C99.
 
 ## Project Status
 
@@ -9,19 +9,37 @@ A hand-written lexer and recursive-descent parser for the C99 programming langua
 | Lexer | Complete — tokenizes all C99 tokens, keywords, operators, literals, preprocessor directives |
 | Parser | Complete — full C99 recursive-descent parser producing an AST |
 | AST | Complete — expression, statement, declaration, and type nodes |
-| Interpreter | Not yet started |
+| Interpreter | Complete — tree-walking interpreter with functions, structs, pointers, all control flow |
+
+## Quick Start
+
+```sh
+cd code
+make
+./interpreter sample.c
+```
+
+Running without arguments executes the full test suite:
+```sh
+./interpreter
+```
+
+Use `--ast` to dump the AST before execution:
+```sh
+./interpreter --ast sample.c
+```
 
 ## Architecture
 
 ```
-Source Code  -->  Lexer  -->  Token Stream  -->  Parser  -->  AST
+Source Code  -->  Lexer  -->  Token Stream  -->  Parser  -->  AST  -->  Interpreter  -->  Output
 ```
 
 ### Source Files
 
 | File | Purpose |
 |------|---------|
-| `code/main.c` | Entry point; includes all `.c` files (single translation unit) and runs tests |
+| `code/main.c` | Entry point; includes all `.c` files (single translation unit), dispatches to interpreter or test suite |
 | `code/common.h` | Shared types (`s8`–`u64`, `f32`, `f64`, `b32`), `DynamicArray` macros, includes all headers |
 | `code/string_guard.h` | `String`/`Buffer` type and character-class/string utility functions |
 | `code/table.c` | String interning via linear search (used by lexer for identifiers/keywords) |
@@ -32,17 +50,51 @@ Source Code  -->  Lexer  -->  Token Stream  -->  Parser  -->  AST
 | `code/ast.c` | AST node constructors (heap-allocated) and recursive pretty-printer |
 | `code/parser.h` | Parser state, API prototypes, and complete EBNF grammar in comments |
 | `code/parser.c` | Recursive-descent parser: expressions (15 precedence levels), statements, declarations |
+| `code/eval.h` | Interpreter types: `Val` (runtime value), `Scope`/`Env`, `Interp` state, builtin function API |
+| `code/eval.c` | Tree-walking interpreter: expression evaluator, statement executor, function calls, builtins |
 | `code/grammar.txt` | Standalone reference of the complete implemented grammar |
-| `code/test.c` | All tests: lexer token tests, expression evaluator tests, AST parser tests |
+| `code/test.c` | All tests: lexer, parser AST, and interpreter |
+| `code/sample.c` | Example C program that exercises all interpreter features |
 | `code/Makefile` | Cross-platform build with `cc` (C99 standard) |
 | `code/build.bat` | Legacy Windows build (MSVC `cl`) |
 
+## Interpreter Features
+
+### Supported C99 Constructs
+
+- **Data types**: `int`, `char`, `short`, `long`, `float`, `double`, `void`, `unsigned`, `signed`
+- **Pointers**: `&x`, `*p`, pointer arithmetic, pointer dereferencing as lvalue
+- **Structs**: definition, field access (`.`), pointer field access (`->`)
+- **Enums**: with implicit and explicit values
+- **Functions**: definitions, forward declarations, recursion, varargs (via builtins)
+- **Control flow**: `if`/`else`, `while`, `do-while`, `for`, `switch`/`case`/`default`, `break`, `continue`, `goto`/labels
+- **Operators**: all C99 arithmetic, bitwise, logical, comparison, assignment, compound assignment, ternary, comma, increment/decrement (prefix and postfix)
+- **Type casts**: `(int)x`, `(float)y`
+- **sizeof**: for expressions and types
+
+### Built-in Functions
+
+| Function | Description |
+|----------|-------------|
+| `printf` | Formatted output (supports `%d`, `%i`, `%u`, `%x`, `%o`, `%f`, `%e`, `%g`, `%c`, `%s`, `%p`, `%%`) |
+| `putchar` | Write a single character |
+| `puts` | Write a string with newline |
+| `malloc` | Allocate memory (returns pointer to Val array) |
+| `calloc` | Allocate zeroed memory |
+| `free` | Free memory (no-op in interpreter) |
+| `exit` | Exit with status code |
+| `abs` | Absolute value |
+| `strlen` | String length |
+| `strcmp` | String comparison |
+| `atoi` | String to integer |
+| `sprintf` | Formatted string output |
+
 ### AST Node Families
 
-- **TypeSpec** — Type representations: named types (`int`, `char`, user-defined), pointers, arrays, function types, const/volatile qualifiers, struct/union/enum types
-- **Expr** — Expressions: integer/float/string/char literals, identifiers, unary/binary/ternary operators, function calls, array subscript, member access (`.` and `->`), casts, sizeof, parenthesised
+- **TypeSpec** — Type representations: named types, pointers, arrays, function types, const/volatile qualifiers, struct/union/enum types
+- **Expr** — Expressions: integer/float/string/char literals, identifiers, unary/binary/ternary operators, function calls, array subscript, member access, casts, sizeof
 - **Stmt** — Statements: expression, return, if/else, while, do-while, for, switch/case/default, break, continue, goto, label, compound block, declaration-as-statement
-- **ASTDecl** — Declarations: variables (with optional initializer), functions (definition and forward declaration), structs, unions, enums, typedefs
+- **ASTDecl** — Declarations: variables, functions, structs, unions, enums, typedefs
 
 ### Expression Precedence (lowest to highest)
 
@@ -63,38 +115,19 @@ Source Code  -->  Lexer  -->  Token Stream  -->  Parser  -->  AST
 15. Unary (`++`, `--`, `&`, `*`, `+`, `-`, `~`, `!`, `sizeof`)
 16. Postfix (`()`, `[]`, `.`, `->`, `++`, `--`)
 
-## Building
+## Tests
 
-### macOS / Linux
+The test suite runs automatically when executing the binary without arguments:
 
 ```sh
-cd code
-make
 ./interpreter
 ```
 
-### Windows (MSVC)
-
-```cmd
-code\build.bat
-```
-
-## Tests
-
-The test suite runs automatically when executing the built binary. It covers:
+Coverage:
 
 - **Lexer tests** (9 tests): keywords, operators, integers, floats, characters, strings, comments, suffixes, preprocessor
-- **Legacy expression evaluator** (1 test): constant integer arithmetic
-- **Parser tests** (9 sub-tests inside `test_parse_declarations`):
-  - Expression AST: precedence, associativity, ternary, calls, subscripts, member access, casts, sizeof, postfix
-  - Statements: if/else, while, do-while, for, switch/case/default, return, break, continue, goto, label, blocks
-  - Variable declarations: basic, pointers, arrays, const, unsigned long long, static, extern
-  - Function declarations: definitions with body, forward declarations, varargs, static linkage
-  - Struct declarations: named, anonymous, forward declarations, nested types
-  - Union declarations: named, anonymous
-  - Enum declarations: simple, with explicit values, trailing comma
-  - Typedef declarations: basic, pointer types
-  - Translation unit: multi-declaration source parsed end-to-end
+- **Parser tests** (2 tests): expression AST correctness, full declaration parsing (variables, functions, structs, unions, enums, typedefs, statements)
+- **Interpreter tests** (12 tests): arithmetic, variables/globals, control flow (if/while/for/do-while/break/continue), function calls and recursion, switch/case, pointers, structs, enums, bitwise operations, ternary, goto, increment/decrement
 
 ## License
 
