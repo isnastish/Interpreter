@@ -1,0 +1,26 @@
+# Build output
+interpreter
+*.exe
+*.out
+
+# Debug symbols
+*.dSYM/
+*.pdb
+
+# Object files
+*.o
+*.obj
+
+# MSVC build directory
+build/
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# Editor/IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
